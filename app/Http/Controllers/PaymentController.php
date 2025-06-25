@@ -18,6 +18,11 @@ class PaymentController extends Controller
      */
     public function showPaymentForm(Shipment $shipment): Response | \Illuminate\Http\RedirectResponse
     {
+        // Ensure user can only make payments for their own shipments
+        if ($shipment->sender_id !== auth()->id() && !auth()->user()->hasRole(['admin', 'super_admin'])) {
+            abort(403, 'Unauthorized access to shipment payment.');
+        }
+
         if ($shipment->payment_status === 'paid') {
             return redirect()->route('shipments.show', $shipment)
                 ->with('error', 'This shipment has already been paid for.');
@@ -33,6 +38,11 @@ class PaymentController extends Controller
 
     public function createPaymentIntent(Request $request, Shipment $shipment)
     {
+        // Ensure user can only create payment intents for their own shipments
+        if ($shipment->sender_id !== auth()->id() && !auth()->user()->hasRole(['admin', 'super_admin'])) {
+            return response()->json(['error' => 'Unauthorized access to shipment payment.'], 403);
+        }
+
         if ($shipment->payment_status === 'paid') {
             return response()->json(['error' => 'This shipment has already been paid for.'], 400);
         }
@@ -67,6 +77,9 @@ class PaymentController extends Controller
                 ]
             );
 
+            // Store payment intent ID in session for later status checking
+            session()->put("payment_intent_{$shipment->id}", $intent->id);
+
             return response()->json([
                 'client_secret' => $intent->client_secret,
                 'payment_intent_id' => $intent->id,
@@ -77,7 +90,7 @@ class PaymentController extends Controller
                 'user_id' => auth()->id(),
                 'error' => $e->getMessage()
             ]);
-            
+
             return response()->json([
                 'error' => 'Failed to create payment intent. Please try again.'
             ], 500);
@@ -90,6 +103,14 @@ class PaymentController extends Controller
             'payment_method' => 'required|string',
             'payment_intent_id' => 'required|string',
         ]);
+
+        // Check if the shipment is already paid (possible due to webhook processing)
+        if ($shipment->payment_status === 'paid') {
+            return redirect()->route('payments.success', [
+                'shipment' => $shipment->id,
+                'tracking' => $shipment->tracking_id
+            ]);
+        }
 
         try {
             // Verify the payment with Stripe
@@ -124,17 +145,20 @@ class PaymentController extends Controller
                 );
             }
 
-            // Update shipment payment status
-            $shipment->update(['payment_status' => 'paid']);
+            // Update shipment payment status (with race condition protection)
+            $shipment->refresh(); // Refresh to get latest state
+            if ($shipment->payment_status !== 'paid') {
+                $shipment->update(['payment_status' => 'paid']);
 
-            // Create notification
-            $shipment->sender->notifications()->create([
-                'type' => 'success',
-                'title' => 'Payment Successful',
-                'message' => "Payment for shipment {$shipment->tracking_id} has been processed successfully.",
-                'action_url' => route('shipments.show', $shipment),
-                'action_text' => 'View Shipment',
-            ]);
+                // Create notification only if we're the one updating the status
+                $shipment->sender->notifications()->create([
+                    'type' => 'success',
+                    'title' => 'Payment Successful',
+                    'message' => "Payment for shipment {$shipment->tracking_id} has been processed successfully.",
+                    'action_url' => route('shipments.show', $shipment),
+                    'action_text' => 'View Shipment',
+                ]);
+            }
 
             return redirect()->route('payments.success', [
                 'shipment' => $shipment->id,
@@ -147,7 +171,7 @@ class PaymentController extends Controller
                 $paymentHistory = PaymentHistory::where('payment_intent_id', $validated['payment_intent_id'])->first();
                 $paymentHistory?->markAsFailed('Stripe API error: ' . $e->getMessage());
             }
-            
+
             return back()->withErrors([
                 'payment' => 'Stripe error: ' . $e->getMessage()
             ])->withInput();
@@ -157,13 +181,100 @@ class PaymentController extends Controller
                 $paymentHistory = PaymentHistory::where('payment_intent_id', $validated['payment_intent_id'])->first();
                 $paymentHistory?->markAsFailed('Processing error: ' . $e->getMessage());
             }
-            
+
             return back()->withErrors([
                 'payment' => 'Payment processing failed: ' . $e->getMessage()
             ])->withInput();
         }
     }
 
+    public function checkPaymentStatus(Request $request, Shipment $shipment)
+    {
+        // Ensure user can only check payment status for their own shipments
+        if ($shipment->sender_id !== auth()->id() && !auth()->user()->hasRole(['admin', 'super_admin'])) {
+            return response()->json(['error' => 'Unauthorized access to shipment payment.'], 403);
+        }
+
+        // Try to get payment intent ID from query param first, then session
+        $paymentIntentId = $request->query('payment_intent_id') ?? session()->get("payment_intent_{$shipment->id}");
+
+        if (!$paymentIntentId) {
+            return response()->json([
+                'payment_status' => $shipment->payment_status,
+                'shipment_id' => $shipment->id,
+                'tracking_id' => $shipment->tracking_id
+            ]);
+        }
+
+        try {
+            // Check directly with Stripe for most accurate status
+            \Stripe\Stripe::setApiKey(config('cashier.secret'));
+            $paymentIntent = \Stripe\PaymentIntent::retrieve($paymentIntentId);
+
+            // Update local records if payment succeeded and we haven't processed it yet
+            if ($paymentIntent->status === 'succeeded' && $shipment->payment_status !== 'paid') {
+                // Verify this payment is for the correct shipment
+                if ($paymentIntent->metadata->shipment_id == $shipment->id) {
+                    // Update shipment status
+                    $shipment->update(['payment_status' => 'paid']);
+
+                    // Update payment history
+                    $paymentHistory = PaymentHistory::where('payment_intent_id', $paymentIntentId)->first();
+                    if ($paymentHistory) {
+                        $paymentHistory->markAsSucceeded(
+                            $paymentIntent->latest_charge ?? null,
+                            $paymentIntent->payment_method ?? null
+                        );
+                    }
+
+                    // Create notification
+                    $shipment->sender->notifications()->create([
+                        'type' => 'success',
+                        'title' => 'Payment Successful',
+                        'message' => "Payment for shipment {$shipment->tracking_id} has been processed successfully.",
+                        'action_url' => route('shipments.show', $shipment),
+                        'action_text' => 'View Shipment',
+                    ]);
+                    
+                    // Clean up session
+                    session()->forget("payment_intent_{$shipment->id}");
+                }
+            }
+
+            return response()->json([
+                'payment_status' => $paymentIntent->status === 'succeeded' ? 'paid' : $shipment->payment_status,
+                'stripe_status' => $paymentIntent->status,
+                'shipment_id' => $shipment->id,
+                'tracking_id' => $shipment->tracking_id
+            ]);
+
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            \Log::error('Failed to check payment status with Stripe', [
+                'payment_intent_id' => $paymentIntentId,
+                'shipment_id' => $shipment->id,
+                'error' => $e->getMessage()
+            ]);
+
+            // Fallback to local status
+            return response()->json([
+                'payment_status' => $shipment->payment_status,
+                'shipment_id' => $shipment->id,
+                'tracking_id' => $shipment->tracking_id,
+                'error' => 'Could not verify with Stripe'
+            ]);
+        }
+    }
+
+    /**
+     * Stripe webhook handler
+     *
+     * Note: Webhooks are primarily used as a backup/redundancy mechanism.
+     * The main payment verification happens via direct Stripe API calls in checkPaymentStatus().
+     * Webhooks are useful for:
+     * - Handling edge cases where frontend polling might miss updates
+     * - Processing events when users close browser before completion
+     * - Providing audit trail and redundancy
+     */
     public function webhook(Request $request)
     {
         $payload = $request->getContent();
@@ -204,7 +315,29 @@ class PaymentController extends Controller
     {
         if (isset($paymentIntent['metadata']['shipment_id'])) {
             $shipment = Shipment::find($paymentIntent['metadata']['shipment_id']);
-            $shipment?->update(['payment_status' => 'paid']);
+
+            if ($shipment && $shipment->payment_status !== 'paid') {
+                // Update shipment status
+                $shipment->update(['payment_status' => 'paid']);
+
+                // Update payment history
+                $paymentHistory = PaymentHistory::where('payment_intent_id', $paymentIntent['id'])->first();
+                if ($paymentHistory) {
+                    $paymentHistory->markAsSucceeded(
+                        $paymentIntent['latest_charge'] ?? null,
+                        $paymentIntent['payment_method'] ?? null
+                    );
+                }
+
+                // Create notification
+                $shipment->sender->notifications()->create([
+                    'type' => 'success',
+                    'title' => 'Payment Successful',
+                    'message' => "Payment for shipment {$shipment->tracking_id} has been processed successfully.",
+                    'action_url' => route('shipments.show', $shipment),
+                    'action_text' => 'View Shipment',
+                ]);
+            }
         }
     }
 
@@ -212,7 +345,17 @@ class PaymentController extends Controller
     {
         if (isset($paymentIntent['metadata']['shipment_id'])) {
             $shipment = Shipment::find($paymentIntent['metadata']['shipment_id']);
+
             if ($shipment) {
+                // Update payment history
+                $paymentHistory = PaymentHistory::where('payment_intent_id', $paymentIntent['id'])->first();
+                if ($paymentHistory) {
+                    $paymentHistory->markAsFailed(
+                        $paymentIntent['last_payment_error']['message'] ?? 'Payment failed'
+                    );
+                }
+
+                // Create notification
                 $shipment->sender->notifications()->create([
                     'type' => 'error',
                     'title' => 'Payment Failed',
@@ -224,7 +367,7 @@ class PaymentController extends Controller
         }
     }
 
-    public function generateInvoice(Shipment $shipment)
+    public function generateInvoice(Request $request, Shipment $shipment)
     {
         // Check if user can access this shipment
         if ($shipment->sender_id !== auth()->id() && !auth()->user()->hasRole(['admin', 'super_admin'])) {
@@ -256,8 +399,16 @@ class PaymentController extends Controller
         ];
 
         $pdf = PDF::loadView('invoices.shipment', $data);
+
+        $action = $request->query('action', 'download');
         
-        return $pdf->download("invoice-{$shipment->tracking_id}.pdf");
+        if ($action === 'view') {
+            // Display PDF inline in browser
+            return $pdf->stream("invoice-{$shipment->tracking_id}.pdf");
+        } else {
+            // Download PDF file
+            return $pdf->download("invoice-{$shipment->tracking_id}.pdf");
+        }
     }
 
     public function markAsPaidManually(Shipment $shipment, Request $request)
@@ -311,7 +462,7 @@ class PaymentController extends Controller
     {
         $shipmentId = $request->query('shipment');
         $trackingId = $request->query('tracking');
-        
+
         if ($shipmentId) {
             $shipment = Shipment::find($shipmentId);
             if ($shipment && ($shipment->sender_id === auth()->id() || auth()->user()->hasRole(['admin', 'super_admin']))) {
@@ -320,7 +471,7 @@ class PaymentController extends Controller
                 ]);
             }
         }
-        
+
         // Fallback if no shipment provided or user doesn't have access
         return Inertia::render('Payments/Success', [
             'trackingId' => $trackingId,
