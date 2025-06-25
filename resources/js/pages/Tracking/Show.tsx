@@ -339,7 +339,7 @@ export default function TrackingShow({ shipment }: Props) {
                 {/* Actions */}
                 {shipment.payment_status === 'paid' && (
                     <div className="flex justify-center">
-                        <Link href={route('invoices.generate', shipment.id)}>
+                        <Link href={route('invoices.generate', shipment.id)} target="_blank">
                             <Button variant="outline">
                                 <FileText className="w-4 h-4 mr-2" />
                                 Download Invoice
