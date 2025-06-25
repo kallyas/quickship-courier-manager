@@ -81,10 +81,7 @@ function PaymentForm({ shipment }: PaymentFormProps) {
     const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
     const toast = useToast();
 
-    const { setData, post, processing, errors } = useForm({
-        payment_method: "",
-        payment_intent_id: "",
-    });
+    const { errors } = useForm();
 
     const createPaymentIntent = async () => {
         try {
@@ -175,32 +172,13 @@ function PaymentForm({ shipment }: PaymentFormProps) {
                 setIsProcessing(false);
             } else if (paymentIntent && paymentIntent.status === "succeeded") {
                 toast.success("Payment successful!");
-                const paymentMethodId = typeof paymentIntent.payment_method === 'string'
-                    ? paymentIntent.payment_method
-                    : paymentIntent.payment_method?.id || "";
-
-                // Set both payment method and payment intent ID
-                setData(prev => ({
-                    ...prev,
-                    payment_method: paymentMethodId,
-                    payment_intent_id: intentId || paymentIntent.id
+                
+                // Payment successful - redirect directly to success page
+                // Payment intent ID is stored in session by the server
+                router.visit(route("payments.success", {
+                    shipment: shipment.id,
+                    tracking: shipment.tracking_id
                 }));
-
-                post(route("payments.process", shipment.id), {
-                    onSuccess: () => {
-                        // Payment processed successfully, user will be redirected
-                        setIsProcessing(false);
-                    },
-                    onError: (errors: any) => {
-                        // Handle validation or processing errors
-                        setIsProcessing(false);
-                        if (errors.payment) {
-                            setPaymentError(errors.payment);
-                        } else {
-                            setPaymentError("Payment processing failed. Please try again.");
-                        }
-                    }
-                });
             }
         } catch {
             setPaymentError("An unexpected error occurred. Please try again.");
@@ -272,10 +250,10 @@ function PaymentForm({ shipment }: PaymentFormProps) {
                     <Button
                         type="submit"
                         className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                        disabled={isProcessing || processing || !stripe}
+                        disabled={isProcessing || !stripe}
                         size="lg"
                     >
-                        {isProcessing || processing ? (
+                        {isProcessing ? (
                             <>
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                                 Processing Payment...
