@@ -100,6 +100,115 @@ class ShipmentController extends Controller
     }
 
     /**
+     * Update shipment status (Admin only)
+     */
+    public function updateStatus(Request $request, Shipment $shipment)
+    {
+        // Check if user has admin or super_admin role
+        if (!auth()->user()->hasRole(['admin', 'super_admin'])) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $request->validate([
+            'status' => 'required|string|in:pending,picked_up,in_transit,out_for_delivery,delivered,cancelled,returned',
+            'location' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        // Handle delivery date for delivered status
+        $updateData = ['status' => $request->status];
+        if ($request->status === 'delivered' && !$shipment->delivery_date) {
+            $updateData['delivery_date'] = now();
+        }
+        
+        // Update the shipment
+        $shipment->update($updateData);
+
+        // Create history entry
+        $shipment->history()->create([
+            'status' => $request->status,
+            'location' => $request->location,
+            'notes' => $request->notes,
+            'updated_by' => auth()->id(),
+        ]);
+
+        // Create notification for customer
+        \App\Models\Notification::createForUser(
+            $shipment->sender_id,
+            'info',
+            'Shipment Status Updated',
+            "Your shipment {$shipment->tracking_id} status has been updated to: {$shipment->getStatusLabelAttribute()}",
+            null,
+            route('shipments.show', $shipment),
+            'View Shipment'
+        );
+
+        return back()->with('success', 'Shipment status updated successfully.');
+    }
+
+    /**
+     * Bulk update shipment statuses (Admin only)
+     */
+    public function bulkUpdateStatus(Request $request)
+    {
+        // Check if user has admin or super_admin role
+        if (!auth()->user()->hasRole(['admin', 'super_admin'])) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $request->validate([
+            'shipment_ids' => 'required|array|min:1',
+            'shipment_ids.*' => 'required|integer|exists:shipments,id',
+            'status' => 'required|string|in:pending,picked_up,in_transit,out_for_delivery,delivered,cancelled,returned',
+            'location' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $shipmentIds = $request->shipment_ids;
+        $status = $request->status;
+        $location = $request->location;
+        $notes = $request->notes;
+        $updatedCount = 0;
+
+        foreach ($shipmentIds as $shipmentId) {
+            $shipment = Shipment::find($shipmentId);
+            if (!$shipment) continue;
+
+            // Handle delivery date for delivered status
+            $updateData = ['status' => $status];
+            if ($status === 'delivered' && !$shipment->delivery_date) {
+                $updateData['delivery_date'] = now();
+            }
+            
+            // Update the shipment
+            $shipment->update($updateData);
+
+            // Create history entry
+            $shipment->history()->create([
+                'status' => $status,
+                'location' => $location,
+                'notes' => $notes,
+                'updated_by' => auth()->id(),
+            ]);
+
+            // Create notification for customer
+            \App\Models\Notification::createForUser(
+                $shipment->sender_id,
+                'info',
+                'Shipment Status Updated',
+                "Your shipment {$shipment->tracking_id} status has been updated to: {$shipment->getStatusLabelAttribute()}",
+                null,
+                route('shipments.show', $shipment),
+                'View Shipment'
+            );
+
+            $updatedCount++;
+        }
+
+        return back()->with('success', "Successfully updated {$updatedCount} shipment(s).");
+    }
+
+    /**
      * Remove the specified resource from storage.
      */
     public function destroy(string $id)
