@@ -306,6 +306,7 @@ export default function Create({ locations }: Props) {
                     type="date"
                     value={data.pickup_date}
                     onChange={(e) => setData("pickup_date", e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
                   />
                   {errors.pickup_date && (
                     <p className="text-red-600 text-sm mt-1">{errors.pickup_date}</p>
@@ -319,6 +320,8 @@ export default function Create({ locations }: Props) {
                     type="date"
                     value={data.estimated_delivery}
                     onChange={(e) => setData("estimated_delivery", e.target.value)}
+                    // min date should be later than today
+                    min={new Date().toISOString().split("T")[0]}
                   />
                   {errors.estimated_delivery && (
                     <p className="text-red-600 text-sm mt-1">{errors.estimated_delivery}</p>
