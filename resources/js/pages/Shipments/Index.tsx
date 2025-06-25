@@ -1,8 +1,10 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { type Column, DataTable } from '@/components/data-table';
+import { BulkStatusUpdate } from '@/components/bulk-status-update';
+import { ShipmentStatusUpdate } from '@/components/shipment-status-update';
 import AppLayout from '@/layouts/app-layout';
 import { Eye, Package, Plus } from 'lucide-react';
 
@@ -62,7 +64,9 @@ const statusColors = {
 };
 
 export default function Index({ shipments }: Props) {
-    console.log(shipments);
+    const { auth } = usePage<{ auth: { user: { user_type: string[] } } }>().props;
+    const isAdmin = auth.user?.user_type?.includes('admin') || auth.user?.user_type?.includes('super_admin');
+
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -81,7 +85,10 @@ export default function Index({ shipments }: Props) {
             sortable: true,
             searchable: true,
             render: (value, row) => (
-                <Link href={route('shipments.show', row.id)} className="font-medium text-blue-600 hover:text-blue-800">
+                <Link 
+                    href={route('shipments.show', row.id)} 
+                    className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                >
                     {value as string}
                 </Link>
             )
@@ -143,19 +150,23 @@ export default function Index({ shipments }: Props) {
             key: 'id',
             header: 'Actions',
             render: (value, row) => (
-                <Link href={route('shipments.show', row.id)}>
-                    <Button variant="outline" size="sm">
-                        <Eye className="mr-2 h-4 w-4" />
-                        View
-                    </Button>
-                </Link>
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <Link href={route('shipments.show', row.id)}>
+                        <Button variant="outline" size="sm">
+                            <Eye className="mr-2 h-4 w-4" />
+                            View
+                        </Button>
+                    </Link>
+                    {isAdmin && (
+                        <div onClick={(e) => e.stopPropagation()}>
+                            <ShipmentStatusUpdate shipment={row} canUpdate={true} />
+                        </div>
+                    )}
+                </div>
             )
         }
     ];
 
-    const handleRowClick = (row: Shipment) => {
-        router.visit(route('shipments.show', row.id));
-    };
 
     return (
         <AppLayout>
@@ -169,12 +180,20 @@ export default function Index({ shipments }: Props) {
                             Manage your shipments and track their progress
                         </p>
                     </div>
-                    <Link href={route('shipments.create')}>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" />
-                            New Shipment
-                        </Button>
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        {isAdmin && shipments.data.length > 0 && (
+                            <BulkStatusUpdate
+                                shipments={shipments.data}
+                                onUpdate={() => router.reload()}
+                            />
+                        )}
+                        <Link href={route('shipments.create')}>
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" />
+                                New Shipment
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Statistics Cards */}
@@ -262,10 +281,8 @@ export default function Index({ shipments }: Props) {
                                     ...shipment,
                                     id: parseInt(shipment.id.toString().padStart(6, '0')),
                                 }))}
-
                                 columns={columns}
                                 searchableColumns={['tracking_id', 'sender', 'recipient_name']}
-                                onRowClick={handleRowClick}
                             />
                         )}
                     </CardContent>
