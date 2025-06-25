@@ -98,9 +98,10 @@ class DashboardController extends Controller
             ->sum('price');
 
         // Recent shipments
-        $recentShipments = Shipment::with(['sender', 'origin_location', 'destination_location'])
+        $recentShipments = Shipment::where('sender_id', $user->id)
+            ->with(['originLocation', 'destinationLocation'])
             ->orderBy('created_at', 'desc')
-            ->limit(10)
+            ->limit(5)
             ->get();
 
         // Status breakdown
