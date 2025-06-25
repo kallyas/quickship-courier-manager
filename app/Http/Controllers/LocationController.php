@@ -9,6 +9,17 @@ use Inertia\Response;
 
 class LocationController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth');
+        $this->middleware(function ($request, $next) {
+            if (!auth()->check() || !auth()->user()->hasRole(['admin', 'super_admin'])) {
+                abort(403, 'Unauthorized access.');
+            }
+            return $next($request);
+        });
+    }
+
     /**
      * Display a listing of the resource.
      */
