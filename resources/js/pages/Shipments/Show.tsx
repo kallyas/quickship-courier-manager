@@ -1,8 +1,9 @@
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, usePage, router } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ShipmentStatusUpdate } from "@/components/shipment-status-update";
 import AppLayout from "@/layouts/app-layout";
 import { 
   Package, 
@@ -16,7 +17,11 @@ import {
   History,
   CreditCard,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  Settings,
+  Eye,
+  FileText
 } from "lucide-react";
 
 interface Location {
@@ -88,35 +93,64 @@ const statusColors = {
 };
 
 export default function Show({ shipment }: Props) {
+  const { auth } = usePage<{ auth: { user: { roles: Array<{ name: string }> } } }>().props;
+  const isAdmin = auth.user?.roles?.some(role => ['admin', 'super_admin'].includes(role.name)) || false;
+
   return (
     <AppLayout>
       <Head title={`Shipment ${shipment.tracking_id}`} />
 
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Link href={route("shipments.index")}>
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Shipments
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Shipment {shipment.tracking_id}
-            </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge
-                className={
-                  statusColors[shipment.status as keyof typeof statusColors] ||
-                  "bg-gray-100 text-gray-800"
-                }
-              >
-                {shipment.status_label}
-              </Badge>
-              <span className="text-muted-foreground">
-                Created {new Date(shipment.created_at).toLocaleDateString()}
-              </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href={route("shipments.index")}>
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Shipments
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">
+                Shipment {shipment.tracking_id}
+              </h1>
+              <div className="flex items-center gap-3 mt-2">
+                <ShipmentStatusUpdate shipment={shipment} canUpdate={false} />
+                <span className="text-muted-foreground">•</span>
+                <span className="text-muted-foreground">
+                  Created {new Date(shipment.created_at).toLocaleDateString()}
+                </span>
+              </div>
             </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {/* Refresh Button */}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => router.reload()}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            
+            {/* View Invoice Button (if paid) */}
+            {shipment.payment_status === 'paid' && (
+              <Link href={route("invoices.generate", shipment.id)}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  View Invoice
+                </Button>
+              </Link>
+            )}
+            
+            {/* Admin Actions */}
+            {isAdmin && (
+              <div className="flex items-center gap-2 border-l pl-2 ml-2">
+                <ShipmentStatusUpdate shipment={shipment} canUpdate={true} />
+              </div>
+            )}
           </div>
         </div>
 
@@ -209,52 +243,153 @@ export default function Show({ shipment }: Props) {
             {/* Tracking History */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Tracking History
+                <CardTitle className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Tracking History
+                  </div>
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {shipment.history.length} updates
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {shipment.history.map((entry, index) => (
-                    <div key={entry.id} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-3 h-3 rounded-full ${
-                          index === 0 ? 'bg-blue-600' : 'bg-gray-300'
-                        }`} />
-                        {index < shipment.history.length - 1 && (
-                          <div className="w-0.5 h-8 bg-gray-200 mt-2" />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium capitalize">
-                            {entry.status.replace('_', ' ')}
-                          </p>
-                          <span className="text-sm text-gray-500">
-                            {new Date(entry.created_at).toLocaleString()}
-                          </span>
+                {shipment.history.length === 0 ? (
+                  <div className="text-center py-8">
+                    <History className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-muted-foreground">No tracking history available yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {shipment.history.map((entry, index) => {
+                      const statusColors = {
+                        pending: 'bg-yellow-500',
+                        picked_up: 'bg-blue-500',
+                        in_transit: 'bg-purple-500',
+                        out_for_delivery: 'bg-orange-500',
+                        delivered: 'bg-green-500',
+                        cancelled: 'bg-red-500',
+                        returned: 'bg-gray-500',
+                      };
+                      
+                      const statusColor = statusColors[entry.status as keyof typeof statusColors] || 'bg-gray-400';
+                      
+                      return (
+                        <div key={entry.id} className="flex gap-4">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-4 h-4 rounded-full ${
+                              index === 0 ? statusColor : 'bg-gray-300'
+                            } flex items-center justify-center`}>
+                              {index === 0 && entry.status === 'delivered' && (
+                                <CheckCircle className="h-3 w-3 text-white" />
+                              )}
+                            </div>
+                            {index < shipment.history.length - 1 && (
+                              <div className="w-0.5 h-12 bg-gray-200 mt-2" />
+                            )}
+                          </div>
+                          <div className="flex-1 pb-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium capitalize">
+                                    {entry.status.replace('_', ' ')}
+                                  </p>
+                                  {index === 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      Latest
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-sm text-muted-foreground">
+                                  {new Date(entry.created_at).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {entry.location && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <MapPin className="h-4 w-4 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground">
+                                  {entry.location}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {entry.notes && (
+                              <div className="mt-2 p-2 bg-gray-50 rounded-md">
+                                <p className="text-sm text-gray-700">
+                                  {entry.notes}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {entry.updated_by && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <User className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">
+                                  Updated by {entry.updated_by.name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {entry.location && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            Location: {entry.location}
-                          </p>
-                        )}
-                        {entry.notes && (
-                          <p className="text-sm text-gray-600 mt-1">
-                            {entry.notes}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Admin Quick Actions */}
+            {isAdmin && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-blue-800">
+                    <Settings className="h-5 w-5" />
+                    Admin Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-col gap-2">
+                    <ShipmentStatusUpdate shipment={shipment} canUpdate={true} />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => router.reload()}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Refresh Data
+                    </Button>
+                    {shipment.payment_status === 'paid' && (
+                      <Link href={route("invoices.generate", shipment.id)} target="_blank">
+                        <Button variant="outline" size="sm" className="w-full">
+                          <FileText className="mr-2 h-4 w-4" />
+                          Generate Invoice
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="text-xs text-blue-700 space-y-1">
+                    <p><strong>ID:</strong> #{shipment.id}</p>
+                    <p><strong>Service:</strong> {shipment.service_type}</p>
+                    {shipment.weight && (
+                      <p><strong>Weight:</strong> {shipment.weight} kg</p>
+                    )}
+                    {shipment.declared_value && (
+                      <p><strong>Value:</strong> ${shipment.declared_value}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             {/* Sender Information */}
             <Card>
               <CardHeader>
