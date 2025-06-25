@@ -17,6 +17,8 @@ Route::get('/', function () {
 // Public tracking routes
 Route::get('/track', [TrackingController::class, 'index'])->name('tracking.index');
 Route::post('/track', [TrackingController::class, 'track'])->name('tracking.track');
+Route::post('/track/refresh', [TrackingController::class, 'refreshStatus'])->name('tracking.refresh');
+Route::post('/track/multiple', [TrackingController::class, 'getMultipleTracking'])->name('tracking.multiple');
 
 // Stripe webhook (must be outside auth middleware)
 Route::post('/stripe/webhook', [PaymentController::class, 'webhook'])->name('cashier.webhook');
@@ -70,20 +72,50 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
     Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
     
-    // Payment routes
+    // Payment routes - specific routes must come before parameterized routes
+    Route::get('payments', function () {
+        // Redirect based on user role
+        if (auth()->user()->hasRole(['admin', 'super_admin'])) {
+            return redirect()->route('payments.history');
+        } else {
+            return redirect()->route('payments.my-history');
+        }
+    })->name('payments.index');
+    Route::get('payments/my-history', [PaymentController::class, 'myPaymentHistory'])->name('payments.my-history');
+    Route::get('payments/success', [PaymentController::class, 'paymentSuccess'])->name('payments.success');
     Route::get('payments/{shipment}', [PaymentController::class, 'showPaymentForm'])->name('payments.form');
+    Route::post('payments/{shipment}/intent', [PaymentController::class, 'createPaymentIntent'])->name('payments.intent');
     Route::post('payments/{shipment}', [PaymentController::class, 'processPayment'])->name('payments.process');
+    Route::post('payments/{shipment}/manual', [PaymentController::class, 'markAsPaidManually'])->name('payments.manual');
     
-    // Admin routes
-    Route::middleware(['role:admin|super_admin'])->group(function () {
-        Route::resource('users', UserController::class);
-        Route::resource('locations', LocationController::class);
-        
-        // Reports route
-        Route::get('reports', function () {
-            return Inertia::render('Reports/Index');
-        })->name('reports.index');
-    });
+    // Invoice routes - specific routes must come before parameterized routes
+    Route::get('invoices/my-invoices', [PaymentController::class, 'myInvoices'])->name('invoices.my-invoices');
+    Route::get('invoices/admin', [PaymentController::class, 'invoicesList'])->name('invoices.admin');
+    Route::get('invoices', function () {
+        // Redirect based on user role
+        if (auth()->user()->hasRole(['admin', 'super_admin'])) {
+            return redirect()->route('invoices.admin');
+        } else {
+            return redirect()->route('invoices.my-invoices');
+        }
+    })->name('invoices.index');
+    Route::get('invoices/{shipment}', [PaymentController::class, 'generateInvoice'])->name('invoices.generate');
+    
+    // Admin routes - authorization handled in controllers
+    Route::resource('users', UserController::class);
+    Route::resource('locations', LocationController::class);
+    
+    // Admin payment and invoice routes  
+    Route::get('payments/history', [PaymentController::class, 'paymentHistory'])->name('payments.history');
+    
+    // Reports route
+    Route::get('reports', function () {
+        // Check if user has admin or super_admin role
+        if (!auth()->user()->hasRole(['admin', 'super_admin'])) {
+            abort(403, 'Unauthorized access.');
+        }
+        return Inertia::render('Reports/Index');
+    })->name('reports.index');
     
     // Support route
     Route::get('support', function () {
