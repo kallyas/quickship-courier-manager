@@ -116,9 +116,7 @@ class PaymentController extends Controller
     {
         if (isset($paymentIntent['metadata']['shipment_id'])) {
             $shipment = Shipment::find($paymentIntent['metadata']['shipment_id']);
-            if ($shipment) {
-                $shipment->update(['payment_status' => 'paid']);
-            }
+            $shipment?->update(['payment_status' => 'paid']);
         }
     }
 
