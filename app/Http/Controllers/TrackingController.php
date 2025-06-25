@@ -13,9 +13,14 @@ use Inertia\Response;
 
 class TrackingController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        return Inertia::render('Tracking/Index');
+        // Get tracking ID from URL parameter if provided
+        $trackingId = $request->query('id');
+        
+        return Inertia::render('Tracking/Index', [
+            'initialTrackingId' => $trackingId,
+        ]);
     }
 
     public function track(Request $request)
@@ -24,11 +29,11 @@ class TrackingController extends Controller
             'tracking_id' => 'required|string|max:50',
         ]);
 
-        $trackingId = strtoupper(trim($request->tracking_id));
+        $trackingId = strtolower(trim($request->tracking_id));
 
         // Use cache to improve performance for frequently tracked shipments
         $cacheKey = "shipment_tracking_{$trackingId}";
-        
+
         $shipment = Cache::remember($cacheKey, 300, function () use ($trackingId) {
             return Shipment::with([
                 'sender:id,name,email',
@@ -73,7 +78,7 @@ class TrackingController extends Controller
 
         $trackingId = strtoupper(trim($request->tracking_id));
         $cacheKey = "shipment_tracking_{$trackingId}";
-        
+
         // Clear cache to force fresh data
         Cache::forget($cacheKey);
 
@@ -111,7 +116,7 @@ class TrackingController extends Controller
         ]);
 
         $trackingIds = array_map('strtoupper', array_map('trim', $request->tracking_ids));
-        
+
         $shipments = Shipment::with([
             'originLocation:id,city,state',
             'destinationLocation:id,city,state',
@@ -147,13 +152,13 @@ class TrackingController extends Controller
 
     private function calculateEstimatedDelivery(Shipment $shipment): ?string
     {
-        if ($shipment->status === 'delivered' || $shipment->actual_delivery_date) {
+        if ($shipment->status === 'delivered' || $shipment->delivery_date) {
             return null;
         }
 
         $baseDeliveryDays = 3; // Default delivery time
         $createdAt = Carbon::parse($shipment->created_at);
-        
+
         // Adjust based on status
         switch ($shipment->status) {
             case 'pending':
@@ -173,28 +178,36 @@ class TrackingController extends Controller
         }
 
         // Skip weekends for delivery estimation
-        $estimatedDate = $createdAt->addBusinessDays($estimatedDays);
+        $estimatedDate = $createdAt->copy();
+        $daysAdded = 0;
         
+        while ($daysAdded < $estimatedDays) {
+            $estimatedDate->addDay();
+            if (!$estimatedDate->isWeekend()) {
+                $daysAdded++;
+            }
+        }
+
         return $estimatedDate->toDateTimeString();
     }
 
     private function getTrackingInsights(Shipment $shipment): array
     {
         $insights = [];
-        
+
         // Calculate days in transit
         $createdAt = Carbon::parse($shipment->created_at);
         $daysInTransit = $createdAt->diffInDays(now());
-        
+
         // Get delivery performance
         $avgDeliveryTime = $this->getAverageDeliveryTime($shipment->origin_location_id, $shipment->destination_location_id);
-        
+
         // Determine if shipment is on time
         $isOnTime = $daysInTransit <= $avgDeliveryTime;
-        
+
         // Get similar route statistics
         $routeStats = $this->getRouteStatistics($shipment->origin_location_id, $shipment->destination_location_id);
-        
+
         $insights = [
             'days_in_transit' => $daysInTransit,
             'average_delivery_time' => $avgDeliveryTime,
@@ -222,10 +235,10 @@ class TrackingController extends Controller
             $avgDays = Shipment::where('origin_location_id', $originId)
                 ->where('destination_location_id', $destinationId)
                 ->where('status', 'delivered')
-                ->whereNotNull('actual_delivery_date')
+                ->whereNotNull('delivery_date')
                 ->get()
                 ->map(function ($shipment) {
-                    return Carbon::parse($shipment->created_at)->diffInDays(Carbon::parse($shipment->actual_delivery_date));
+                    return Carbon::parse($shipment->created_at)->diffInDays(Carbon::parse($shipment->delivery_date));
                 })
                 ->avg();
 
@@ -240,16 +253,25 @@ class TrackingController extends Controller
                 ->where('destination_location_id', $destinationId)
                 ->selectRaw('
                     COUNT(*) as total_shipments,
-                    SUM(CASE WHEN status = "delivered" THEN 1 ELSE 0 END) as delivered_count,
-                    AVG(CASE WHEN status = "delivered" AND actual_delivery_date IS NOT NULL 
-                        THEN DATEDIFF(actual_delivery_date, created_at) ELSE NULL END) as avg_delivery_days
+                    SUM(CASE WHEN status = "delivered" THEN 1 ELSE 0 END) as delivered_count
                 ')
                 ->first();
+                
+            // Calculate average delivery days separately to avoid SQL compatibility issues
+            $avgDeliveryDays = Shipment::where('origin_location_id', $originId)
+                ->where('destination_location_id', $destinationId)
+                ->where('status', 'delivered')
+                ->whereNotNull('delivery_date')
+                ->get()
+                ->map(function ($shipment) {
+                    return Carbon::parse($shipment->created_at)->diffInDays(Carbon::parse($shipment->delivery_date));
+                })
+                ->avg();
 
             return [
                 'total_shipments' => $stats->total_shipments ?? 0,
                 'success_rate' => $stats->total_shipments > 0 ? round(($stats->delivered_count / $stats->total_shipments) * 100, 1) : 0,
-                'average_delivery_days' => round($stats->avg_delivery_days ?? 3, 1),
+                'average_delivery_days' => round($avgDeliveryDays ?? 3, 1),
             ];
         });
     }
@@ -258,7 +280,7 @@ class TrackingController extends Controller
     {
         $daysInTransit = Carbon::parse($shipment->created_at)->diffInDays(now());
         $avgDeliveryTime = $this->getAverageDeliveryTime($shipment->origin_location_id, $shipment->destination_location_id);
-        
+
         // Calculate probability based on status and time
         $baseProbability = match($shipment->status) {
             'pending' => 10,
@@ -314,7 +336,7 @@ class TrackingController extends Controller
     {
         $daysInTransit = Carbon::parse($shipment->created_at)->diffInDays(now());
         $avgDeliveryTime = $this->getAverageDeliveryTime($shipment->origin_location_id, $shipment->destination_location_id);
-        
+
         if ($daysInTransit > $avgDeliveryTime * 2) {
             return 'Significant delay - please contact support for assistance';
         } elseif ($daysInTransit > $avgDeliveryTime * 1.5) {
