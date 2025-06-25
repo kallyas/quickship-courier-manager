@@ -181,7 +181,7 @@ export default function InvoicesIndex({ shipments }: Props) {
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
                                                 </Link>
-                                                <Link href={route('invoices.generate', shipment.id)}>
+                                                <Link href={route('invoices.generate', shipment.id)} target="_blank">
                                                     <Button variant="ghost" size="sm" title="Download Invoice">
                                                         <Download className="h-4 w-4" />
                                                     </Button>
