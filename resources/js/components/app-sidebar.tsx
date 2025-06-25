@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, LayoutGrid, Package, Search, Plus, MapPin, Users, BarChart3, Settings, Bell, UserCircle, Palette, TestTube } from 'lucide-react';
+import { BookOpen, LayoutGrid, Package, Search, Plus, MapPin, Users, BarChart3, Settings, Bell, UserCircle, Palette, TestTube, CreditCard, FileText, DollarSign } from 'lucide-react';
 import AppLogo from './app-logo';
 
 // Core navigation items available to all authenticated users
@@ -40,6 +40,20 @@ const shipmentNavItems: NavItem[] = [
     },
 ];
 
+// Payment items for customers
+const customerPaymentNavItems: NavItem[] = [
+    {
+        title: 'My Payments',
+        href: '/payments/my-history',
+        icon: CreditCard,
+    },
+    {
+        title: 'My Invoices',
+        href: '/invoices/my-invoices',
+        icon: FileText,
+    },
+];
+
 // Admin-only navigation items
 const adminNavItems: NavItem[] = [
     {
@@ -56,6 +70,23 @@ const adminNavItems: NavItem[] = [
                 title: 'Create Shipment',
                 href: '/shipments/create',
                 icon: Plus,
+            },
+        ],
+    },
+    {
+        title: 'Payments',
+        href: '/payments',
+        icon: CreditCard,
+        items: [
+            {
+                title: 'Payment History',
+                href: '/payments/history',
+                icon: DollarSign,
+            },
+            {
+                title: 'Invoices',
+                href: '/invoices',
+                icon: FileText,
             },
         ],
     },
@@ -88,6 +119,7 @@ function getNavigationItems(userType?: string): NavItem[] {
     if (userType && ['customer', 'receptionist', 'admin', 'super_admin'].includes(userType)) {
         if (userType === 'customer') {
             items.push(...shipmentNavItems);
+            items.push(...customerPaymentNavItems);
         } else {
             // Staff members see admin navigation
             items.push(...adminNavItems);
