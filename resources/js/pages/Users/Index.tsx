@@ -6,26 +6,26 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import AppLayout from "@/layouts/app-layout";
 import { useState } from "react";
 import { useConfirm } from "@/hooks/use-confirm";
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  MoreHorizontal, 
-  Edit, 
-  Trash2, 
-  Eye, 
+import {
+  Plus,
+  Search,
+  Filter,
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  Eye,
   Users as UsersIcon,
   Crown,
   Shield,
@@ -49,15 +49,6 @@ interface Role {
   name: string;
 }
 
-interface PaginationMeta {
-  total: number;
-  from: number;
-  to: number;
-  current_page: number;
-  last_page: number;
-  per_page: number;
-}
-
 interface PaginationLink {
   url: string | null;
   label: string;
@@ -68,7 +59,12 @@ interface Props {
   users: {
     data: User[];
     links: PaginationLink[];
-    meta: PaginationMeta;
+      total: number;
+      from: number;
+      to: number;
+      current_page: number;
+      last_page: number;
+      per_page: number;
   };
   roles: Role[];
   filters: {
@@ -94,22 +90,26 @@ const userTypeIcons = {
 
 export default function Index({ users, roles, filters }: Props) {
   const [search, setSearch] = useState(filters.search || "");
-  const [selectedRole, setSelectedRole] = useState(filters.role || "");
-  const [selectedUserType, setSelectedUserType] = useState(filters.user_type || "");
+  const [selectedRole, setSelectedRole] = useState(filters.role || "all");
+  const [selectedUserType, setSelectedUserType] = useState(filters.user_type || "all");
   const { confirm, isOpen, options, onConfirm, onOpenChange } = useConfirm();
 
   const handleSearch = () => {
     router.get(
       route("users.index"),
-      { search, role: selectedRole, user_type: selectedUserType },
+      { 
+        search, 
+        role: selectedRole === "all" ? "" : selectedRole, 
+        user_type: selectedUserType === "all" ? "" : selectedUserType 
+      },
       { preserveState: true, replace: true }
     );
   };
 
   const handleClearFilters = () => {
     setSearch("");
-    setSelectedRole("");
-    setSelectedUserType("");
+    setSelectedRole("all");
+    setSelectedUserType("all");
     router.get(route("users.index"));
   };
 
@@ -164,13 +164,13 @@ export default function Index({ users, roles, filters }: Props) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                  <p className="text-2xl font-bold">{users.meta.total}</p>
+                  <p className="text-2xl font-bold">{users.total}</p>
                 </div>
                 <UsersIcon className="h-8 w-8 text-blue-500" />
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="border-l-4 border-l-green-500">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -184,7 +184,7 @@ export default function Index({ users, roles, filters }: Props) {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="border-l-4 border-l-purple-500">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -198,7 +198,7 @@ export default function Index({ users, roles, filters }: Props) {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card className="border-l-4 border-l-red-500">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -234,13 +234,13 @@ export default function Index({ users, roles, filters }: Props) {
                   onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 />
               </div>
-              
+
               <Select value={selectedRole} onValueChange={setSelectedRole}>
                 <SelectTrigger>
                   <SelectValue placeholder="Filter by role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Roles</SelectItem>
+                  <SelectItem value="all">All Roles</SelectItem>
                   {roles.map((role) => (
                     <SelectItem key={role.id} value={role.name}>
                       {role.name}
@@ -248,20 +248,20 @@ export default function Index({ users, roles, filters }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={selectedUserType} onValueChange={setSelectedUserType}>
                 <SelectTrigger>
                   <SelectValue placeholder="Filter by user type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="customer">Customer</SelectItem>
                   <SelectItem value="receptionist">Receptionist</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="super_admin">Super Admin</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               <div className="flex gap-2">
                 <Button onClick={handleSearch} className="flex-1">
                   <Search className="mr-2 h-4 w-4" />
@@ -278,7 +278,7 @@ export default function Index({ users, roles, filters }: Props) {
         {/* Users Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Users ({users.meta.total})</CardTitle>
+            <CardTitle>Users ({users.total})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
@@ -321,7 +321,7 @@ export default function Index({ users, roles, filters }: Props) {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge 
+                          <Badge
                             className={`${userTypeColors[user.user_type]} flex items-center gap-1 w-fit`}
                           >
                             <Icon className="h-3 w-3" />
@@ -391,7 +391,7 @@ export default function Index({ users, roles, filters }: Props) {
             {/* Pagination */}
             <div className="flex items-center justify-between pt-4">
               <p className="text-sm text-muted-foreground">
-                Showing {users.meta.from} to {users.meta.to} of {users.meta.total} users
+                Showing {users.from} to {users.to} of {users.total} users
               </p>
               {/* Pagination component would go here */}
             </div>
