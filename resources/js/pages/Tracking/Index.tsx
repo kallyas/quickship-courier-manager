@@ -5,16 +5,33 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AppLayout from "@/layouts/app-layout";
 import { Search, Package } from "lucide-react";
+import { useEffect } from "react";
 
-export default function TrackingIndex() {
+interface Props {
+  initialTrackingId?: string;
+}
+
+export default function TrackingIndex({ initialTrackingId }: Props) {
   const { data, setData, post, processing, errors } = useForm({
-    tracking_id: "",
+    tracking_id: initialTrackingId || "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     post(route("tracking.track"));
   };
+
+  // Auto-submit if tracking ID is provided in URL
+  useEffect(() => {
+    if (initialTrackingId && initialTrackingId.trim()) {
+      // Add a small delay to ensure the form is ready
+      const timer = setTimeout(() => {
+        post(route("tracking.track"));
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [initialTrackingId, post]);
 
   return (
     <AppLayout>
@@ -44,7 +61,7 @@ export default function TrackingIndex() {
                   type="text"
                   placeholder="Enter tracking ID (e.g., QS-12345-ABCDE)"
                   value={data.tracking_id}
-                  onChange={(e) => setData("tracking_id", e.target.value.toUpperCase())}
+                  onChange={(e) => setData("tracking_id", e.target.value.toLowerCase())}
                   className="font-mono"
                   required
                 />
@@ -85,7 +102,7 @@ export default function TrackingIndex() {
               </p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="pt-6 text-center">
               <div className="bg-green-100 rounded-full p-3 w-12 h-12 mx-auto mb-3 flex items-center justify-center">
@@ -97,7 +114,7 @@ export default function TrackingIndex() {
               </p>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="pt-6 text-center">
               <div className="bg-purple-100 rounded-full p-3 w-12 h-12 mx-auto mb-3 flex items-center justify-center">
