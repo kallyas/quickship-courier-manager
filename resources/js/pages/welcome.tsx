@@ -132,7 +132,16 @@ export default function Welcome() {
     const handleTrackingSubmit = (e: React.FormEvent) => {
         e.preventDefault()
         if (trackingId.trim()) {
-            window.location.href = `/track?id=${encodeURIComponent(trackingId.trim())}`
+            const trackingUrl = `/track?id=${encodeURIComponent(trackingId.trim())}`
+            
+            if (auth.user) {
+                // User is authenticated, go directly to tracking
+                window.location.href = trackingUrl
+            } else {
+                // User is not authenticated, redirect to login with intended URL
+                const loginUrl = route('login') + '?intended=' + encodeURIComponent(trackingUrl)
+                window.location.href = loginUrl
+            }
         }
     }
 
@@ -171,12 +180,21 @@ export default function Welcome() {
                                 >
                                     Contact
                                 </a>
-                                <Link
-                                    href={route("tracking.index")}
-                                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                                >
-                                    Track Package
-                                </Link>
+                                {auth.user ? (
+                                    <Link
+                                        href={route("tracking.index")}
+                                        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                                    >
+                                        Track Package
+                                    </Link>
+                                ) : (
+                                    <a
+                                        href={route('login') + '?intended=' + encodeURIComponent('/track')}
+                                        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                                    >
+                                        Track Package
+                                    </a>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-3">
@@ -249,16 +267,29 @@ export default function Welcome() {
                                         </Button>
                                     </Link>
                                 )}
-                                <Link href={route("tracking.index")}>
-                                    <Button
-                                        size="lg"
-                                        variant="outline"
-                                        className="px-8 py-3 text-base border-border hover:bg-accent hover:text-accent-foreground"
-                                    >
-                                        <Search className="mr-2 h-5 w-5" />
-                                        Track Package
-                                    </Button>
-                                </Link>
+                                {auth.user ? (
+                                    <Link href={route("tracking.index")}>
+                                        <Button
+                                            size="lg"
+                                            variant="outline"
+                                            className="px-8 py-3 text-base border-border hover:bg-accent hover:text-accent-foreground"
+                                        >
+                                            <Search className="mr-2 h-5 w-5" />
+                                            Track Package
+                                        </Button>
+                                    </Link>
+                                ) : (
+                                    <a href={route('login') + '?intended=' + encodeURIComponent('/track')}>
+                                        <Button
+                                            size="lg"
+                                            variant="outline"
+                                            className="px-8 py-3 text-base border-border hover:bg-accent hover:text-accent-foreground"
+                                        >
+                                            <Search className="mr-2 h-5 w-5" />
+                                            Track Package
+                                        </Button>
+                                    </a>
+                                )}
                             </div>
 
                             {/* Quick Tracking */}
@@ -515,18 +546,33 @@ export default function Welcome() {
                                 <CardContent className="p-8">
                                     <h3 className="mb-6 text-xl font-semibold text-card-foreground">Quick Actions</h3>
                                     <div className="space-y-4">
-                                        <Link
-                                            href={route("tracking.index")}
-                                            className="flex items-center justify-between rounded-xl border border-border p-4 transition-all hover:bg-accent hover:text-accent-foreground group"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-chart-1">
-                                                    <Search className="h-4 w-4 text-white" />
+                                        {auth.user ? (
+                                            <Link
+                                                href={route("tracking.index")}
+                                                className="flex items-center justify-between rounded-xl border border-border p-4 transition-all hover:bg-accent hover:text-accent-foreground group"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-chart-1">
+                                                        <Search className="h-4 w-4 text-white" />
+                                                    </div>
+                                                    <span className="font-medium">Track Your Package</span>
                                                 </div>
-                                                <span className="font-medium">Track Your Package</span>
-                                            </div>
-                                            <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-accent-foreground" />
-                                        </Link>
+                                                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-accent-foreground" />
+                                            </Link>
+                                        ) : (
+                                            <a
+                                                href={route('login') + '?intended=' + encodeURIComponent('/track')}
+                                                className="flex items-center justify-between rounded-xl border border-border p-4 transition-all hover:bg-accent hover:text-accent-foreground group"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-chart-1">
+                                                        <Search className="h-4 w-4 text-white" />
+                                                    </div>
+                                                    <span className="font-medium">Track Your Package</span>
+                                                </div>
+                                                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-accent-foreground" />
+                                            </a>
+                                        )}
                                         {!auth.user && (
                                             <Link
                                                 href={route("register")}
@@ -612,9 +658,15 @@ export default function Welcome() {
                                         </Link>
                                     </li>
                                     <li>
-                                        <Link href={route("tracking.index")} className="hover:text-primary-foreground transition-colors">
-                                            Track Package
-                                        </Link>
+                                        {auth.user ? (
+                                            <Link href={route("tracking.index")} className="hover:text-primary-foreground transition-colors">
+                                                Track Package
+                                            </Link>
+                                        ) : (
+                                            <a href={route('login') + '?intended=' + encodeURIComponent('/track')} className="hover:text-primary-foreground transition-colors">
+                                                Track Package
+                                            </a>
+                                        )}
                                     </li>
                                     <li className="hover:text-primary-foreground transition-colors cursor-pointer">API Docs</li>
                                     <li className="hover:text-primary-foreground transition-colors cursor-pointer">Status Page</li>
