@@ -258,7 +258,11 @@ export default function Index({ shipments }: Props) {
                             </div>
                         ) : (
                             <DataTable
-                                data={shipments.data}
+                                data={shipments.data.map(shipment => ({
+                                    ...shipment,
+                                    id: parseInt(shipment.id.toString().padStart(6, '0')),
+                                }))}
+
                                 columns={columns}
                                 searchableColumns={['tracking_id', 'sender', 'recipient_name']}
                                 onRowClick={handleRowClick}
