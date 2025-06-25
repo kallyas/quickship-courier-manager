@@ -1,24 +1,10 @@
-import { Head, Link } from "@inertiajs/react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import AppLayout from "@/layouts/app-layout";
-import { 
-    Table, 
-    TableBody, 
-    TableCell, 
-    TableHead, 
-    TableHeader, 
-    TableRow 
-} from "@/components/ui/table";
-import { 
-    CreditCard, 
-    DollarSign, 
-    Clock, 
-    CheckCircle, 
-    XCircle,
-    Eye
-} from "lucide-react";
+import { Head, Link } from '@inertiajs/react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import AppLayout from '@/layouts/app-layout';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { CheckCircle, Clock, CreditCard, DollarSign, Eye, XCircle } from 'lucide-react';
 
 interface PaymentHistory {
     id: number;
@@ -52,12 +38,11 @@ interface Props {
             label: string;
             active: boolean;
         }>;
-        meta: {
-            current_page: number;
-            last_page: number;
-            per_page: number;
-            total: number;
-        };
+        current_page: number;
+        last_page: number;
+        per_page: number;
+        total: number;
+
     };
 }
 
@@ -66,14 +51,14 @@ const statusConfig = {
     succeeded: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
     failed: { color: 'bg-red-100 text-red-800', icon: XCircle },
     canceled: { color: 'bg-gray-100 text-gray-800', icon: XCircle },
-    requires_action: { color: 'bg-blue-100 text-blue-800', icon: Clock },
+    requires_action: { color: 'bg-blue-100 text-blue-800', icon: Clock }
 };
 
 export default function PaymentHistory({ payments }: Props) {
     const formatCurrency = (amount: number, currency: string) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: currency.toUpperCase(),
+            currency: currency.toUpperCase()
         }).format(amount);
     };
 
@@ -83,14 +68,14 @@ export default function PaymentHistory({ payments }: Props) {
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
-            minute: '2-digit',
+            minute: '2-digit'
         });
     };
 
     const getStatusBadge = (status: PaymentHistory['status']) => {
         const config = statusConfig[status];
         const IconComponent = config.icon;
-        
+
         return (
             <Badge variant="secondary" className={`${config.color} flex items-center gap-1`}>
                 <IconComponent className="h-3 w-3" />
@@ -102,7 +87,7 @@ export default function PaymentHistory({ payments }: Props) {
     return (
         <AppLayout>
             <Head title="Payment History" />
-            
+
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
@@ -120,10 +105,10 @@ export default function PaymentHistory({ payments }: Props) {
                             <CreditCard className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{payments.meta.total}</div>
+                            <div className="text-2xl font-bold">{payments.total}</div>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Successful</CardTitle>
@@ -135,7 +120,7 @@ export default function PaymentHistory({ payments }: Props) {
                             </div>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Failed</CardTitle>
@@ -147,7 +132,7 @@ export default function PaymentHistory({ payments }: Props) {
                             </div>
                         </CardContent>
                     </Card>
-                    
+
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -199,7 +184,8 @@ export default function PaymentHistory({ payments }: Props) {
                                         <TableCell>
                                             <div className="text-sm">
                                                 <div className="font-medium">{payment.shipment.tracking_id}</div>
-                                                <div className="text-muted-foreground">{payment.shipment.recipient_name}</div>
+                                                <div
+                                                    className="text-muted-foreground">{payment.shipment.recipient_name}</div>
                                             </div>
                                         </TableCell>
                                         <TableCell>
@@ -245,14 +231,14 @@ export default function PaymentHistory({ payments }: Props) {
                         )}
 
                         {/* Pagination */}
-                        {payments.meta.last_page > 1 && (
+                        {payments.last_page > 1 && (
                             <div className="flex items-center justify-center space-x-2 mt-4">
                                 {payments.links.map((link, index) => (
                                     <div key={index}>
                                         {link.url ? (
                                             <Link href={link.url}>
                                                 <Button
-                                                    variant={link.active ? "default" : "outline"}
+                                                    variant={link.active ? 'default' : 'outline'}
                                                     size="sm"
                                                     dangerouslySetInnerHTML={{ __html: link.label }}
                                                 />
