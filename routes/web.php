@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\TrackingController;
 use App\Http\Controllers\UserController;
@@ -14,16 +15,16 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
-// Public tracking routes
-Route::get('/track', [TrackingController::class, 'index'])->name('tracking.index');
-Route::post('/track', [TrackingController::class, 'track'])->name('tracking.track');
-Route::post('/track/refresh', [TrackingController::class, 'refreshStatus'])->name('tracking.refresh');
-Route::post('/track/multiple', [TrackingController::class, 'getMultipleTracking'])->name('tracking.multiple');
-
 // Stripe webhook (must be outside auth middleware)
 Route::post('/stripe/webhook', [PaymentController::class, 'webhook'])->name('cashier.webhook');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Tracking routes
+    Route::get('/track', [TrackingController::class, 'index'])->name('tracking.index');
+    Route::post('/track', [TrackingController::class, 'track'])->name('tracking.track');
+    Route::post('/track/refresh', [TrackingController::class, 'refreshStatus'])->name('tracking.refresh');
+    Route::post('/track/multiple', [TrackingController::class, 'getMultipleTracking'])->name('tracking.multiple');
+    
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
     // Test route to create sample notifications (for development)
@@ -65,6 +66,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     // Shipment management routes
     Route::resource('shipments', ShipmentController::class);
+    Route::patch('shipments/{shipment}/status', [ShipmentController::class, 'updateStatus'])->name('shipments.update-status');
+    Route::patch('shipments/bulk-status', [ShipmentController::class, 'bulkUpdateStatus'])->name('shipments.bulk-update-status');
     
     // Notification routes
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
@@ -82,10 +85,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         }
     })->name('payments.index');
     Route::get('payments/my-history', [PaymentController::class, 'myPaymentHistory'])->name('payments.my-history');
+    Route::get('payments/history', [PaymentController::class, 'paymentHistory'])->name('payments.history');
     Route::get('payments/success', [PaymentController::class, 'paymentSuccess'])->name('payments.success');
     Route::get('payments/{shipment}', [PaymentController::class, 'showPaymentForm'])->name('payments.form');
     Route::post('payments/{shipment}/intent', [PaymentController::class, 'createPaymentIntent'])->name('payments.intent');
-    Route::post('payments/{shipment}', [PaymentController::class, 'processPayment'])->name('payments.process');
+    Route::get('payments/{shipment}/status', [PaymentController::class, 'checkPaymentStatus'])->name('payments.status');
     Route::post('payments/{shipment}/manual', [PaymentController::class, 'markAsPaidManually'])->name('payments.manual');
     
     // Invoice routes - specific routes must come before parameterized routes
@@ -105,17 +109,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
     Route::resource('locations', LocationController::class);
     
-    // Admin payment and invoice routes  
-    Route::get('payments/history', [PaymentController::class, 'paymentHistory'])->name('payments.history');
-    
-    // Reports route
-    Route::get('reports', function () {
-        // Check if user has admin or super_admin role
-        if (!auth()->user()->hasRole(['admin', 'super_admin'])) {
-            abort(403, 'Unauthorized access.');
-        }
-        return Inertia::render('Reports/Index');
-    })->name('reports.index');
+    // Reports routes
+    Route::get('reports', [ReportsController::class, 'index'])->name('reports.index');
+    Route::get('reports/export', [ReportsController::class, 'export'])->name('reports.export');
     
     // Support route
     Route::get('support', function () {
