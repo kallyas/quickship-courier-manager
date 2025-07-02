@@ -248,7 +248,37 @@ graph TD
 - Node.js 18+
 - SQLite (or MySQL/PostgreSQL)
 
-### Setup Steps
+### Quick Setup (Windows PowerShell)
+
+For Windows users, you can use the automated setup script:
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd quickship-courier-manager
+   ```
+
+2. **Run the setup script**
+   ```powershell
+   .\setup.ps1
+   ```
+
+   The PowerShell script will automatically:
+   - Check system requirements (PHP, Composer, Node.js)
+   - Install PHP and Node.js dependencies
+   - Set up environment configuration
+   - Generate application key
+   - Run database migrations and seeders
+   - Build frontend assets
+   - Clear application cache
+   - Start the development server
+
+   **Note**: If you encounter execution policy restrictions, run PowerShell as Administrator and execute:
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+### Manual Setup Steps
 
 1. **Clone the repository**
    ```bash
@@ -288,6 +318,15 @@ graph TD
    ```bash
    php artisan serve
    ```
+
+### Default Login Credentials
+
+After setup completion, you can log in with these default accounts:
+
+- **Super Admin**: `admin@quickship.com` / `password`
+- **Customer**: `john.customer@example.com` / `password`
+
+The application will be available at: http://localhost:8000
 
 ## ⚙️ Configuration
 
