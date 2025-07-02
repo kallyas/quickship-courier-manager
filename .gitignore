@@ -22,3 +22,7 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Project documentation
+instructions.md
+COURIER_NAVIGATION.md
