@@ -137,12 +137,12 @@ export default function Show({ shipment }: Props) {
             
             {/* View Invoice Button (if paid) */}
             {shipment.payment_status === 'paid' && (
-              <Link href={route("invoices.generate", shipment.id)}>
+              <a href={route("invoices.generate", shipment.id)}>
                 <Button variant="outline" size="sm" className="gap-2">
                   <FileText className="h-4 w-4" />
                   View Invoice
                 </Button>
-              </Link>
+              </a>
             )}
             
             {/* Admin Actions */}
@@ -366,12 +366,12 @@ export default function Show({ shipment }: Props) {
                       Refresh Data
                     </Button>
                     {shipment.payment_status === 'paid' && (
-                      <Link href={route("invoices.generate", shipment.id)} target="_blank">
+                      <a href={route("invoices.generate", shipment.id)} target="_blank">
                         <Button variant="outline" size="sm" className="w-full">
                           <FileText className="mr-2 h-4 w-4" />
                           Generate Invoice
                         </Button>
-                      </Link>
+                      </a>
                     )}
                   </div>
                   
