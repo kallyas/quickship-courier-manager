@@ -196,11 +196,11 @@ export default function MyPaymentHistory({ payments }: Props) {
                                                     </Button>
                                                 </Link>
                                                 {payment.status === 'succeeded' && payment.shipment.payment_status === 'paid' && (
-                                                    <Link href={route('invoices.generate', payment.shipment.id)} target="_blank">
+                                                    <a href={route('invoices.generate', payment.shipment.id)} target="_blank">
                                                         <Button type={'button'} variant="ghost" size="sm" title="Download Invoice">
                                                             <FileText className="h-4 w-4" />
                                                         </Button>
-                                                    </Link>
+                                                    </a>
                                                 )}
                                             </div>
                                         </TableCell>
