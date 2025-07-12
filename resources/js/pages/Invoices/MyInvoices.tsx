@@ -169,12 +169,12 @@ export default function MyInvoices({ shipments }: Props) {
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
                                                 </Link>
-                                                <Link href={route('invoices.generate', shipment.id)} target="_blank">
+                                                <a href={route('invoices.generate', shipment.id)} target="_blank">
                                                     <Button variant="outline" size="sm" title="Download Invoice">
                                                         <Download className="h-4 w-4 mr-2" />
                                                         Download
                                                     </Button>
-                                                </Link>
+                                                </a>
                                             </div>
                                         </TableCell>
                                     </TableRow>
