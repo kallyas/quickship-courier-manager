@@ -275,18 +275,18 @@ export default function PaymentSuccess({ shipment, trackingId }: Props) {
                                 </Button>
                             </Link>
                             <div className="flex gap-2 flex-1">
-                                <Link href={route('invoices.generate', { shipment: shipment.id, action: 'view' })} className="flex-1" target="_blank">
+                                <a href={route('invoices.generate', { shipment: shipment.id, action: 'view' })} className="flex-1" target="_blank">
                                     <Button variant="outline" className="w-full">
                                         <Eye className="w-4 h-4 mr-2" />
                                         View Invoice
                                     </Button>
-                                </Link>
-                                <Link href={route('invoices.generate', shipment.id)} className="flex-1">
+                                </a>
+                                <a href={route('invoices.generate', shipment.id)} className="flex-1">
                                     <Button variant="outline" className="w-full">
                                         <FileText className="w-4 h-4 mr-2" />
                                         Download
                                     </Button>
-                                </Link>
+                                </a>
                             </div>
                         </>
                     ) : (
